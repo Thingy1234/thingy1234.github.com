@@ -1,7 +1,109 @@
-<!DOCTYPE html>
+<!doctype html>
+<html lang="en">
 <head>
-    <title>Test</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Family Bank</title>
+  <style>
+    body {font-family:system-ui,sans-serif;background:#f4f7f8;color:#19313c;margin:0;padding:24px}
+    main {max-width:560px;margin:30px auto;background:white;border-radius:16px;padding:24px;box-shadow:0 5px 24px #0001}
+    h1 {margin-top:0} label {display:block;margin:14px 0 5px} input,button {box-sizing:border-box;width:100%;padding:12px;font:inherit;border-radius:8px}
+    input {border:1px solid #a7b6bc} button {background:#176b75;color:white;border:0;margin-top:16px;cursor:pointer}
+    button:disabled {opacity:.6;cursor:wait} .hidden {display:none} .balance {font-size:2rem;font-weight:700}
+    li {display:flex;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid #e5ecef}
+    ul {padding:0;list-style:none} .error {color:#9a1d25;white-space:pre-wrap} .muted {color:#58707b}
+  </style>
 </head>
 <body>
-    <h1>This is a test.</h1>
+<main>
+  <h1>🏦 Family Bank</h1>
+  <p id="status" role="status" class="muted">Ready to connect</p>
+  <section id="loginSection">
+    <h2>Sign in</h2>
+    <form id="loginForm">
+      <label for="email">Email</label><input id="email" type="email" autocomplete="username" required>
+      <label for="password">Password</label><input id="password" type="password" autocomplete="current-password" required>
+      <button id="loginButton" type="submit">Sign in</button>
+    </form>
+  </section>
+  <section id="accountSection" class="hidden">
+    <p id="who" class="muted"></p>
+    <h2>Available balance</h2><div id="balance" class="balance">—</div>
+    <h2>Transactions</h2><ul id="transactions"></ul>
+    <button id="refreshButton">Refresh transactions</button>
+    <button id="logoutButton">Sign out</button>
+  </section>
+  <p id="error" class="error" role="alert"></p>
+</main>
+<script type="module">
+  import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+  // Replace these two placeholders with values from your Supabase project.
+  const SUPABASE_URL = 'https://dqjlwmbnraunsmzzbfrg.supabase.co';
+  const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_4z4UYHMjFfd1ABWFtV9n7A_2TfXMaRI';
+  const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
+  const el = id => document.getElementById(id);
+  const currency = value => new Intl.NumberFormat('en-US', {style:'currency',currency:'USD'}).format(value);
+  const message = text => {el('error').textContent = text || '';};
+
+  async function showSession() {
+    const {data:{user},error} = await supabase.auth.getUser();
+    if (error && error.name !== 'AuthSessionMissingError') message(error.message);
+    el('loginSection').classList.toggle('hidden', !!user);
+    el('accountSection').classList.toggle('hidden', !user);
+    el('who').textContent = user ? `Signed in as ${user.email}` : '';
+    el('status').textContent = user ? 'Connected — signed in' : 'Please sign in';
+    if (user) await loadTransactions();
+  }
+
+  async function loadTransactions() {
+    message('');
+    el('status').textContent = 'Loading transactions…';
+    const {data,error} = await supabase.from('transactions')
+      .select('id,description,spending,created_at')
+      .order('created_at', {ascending:false});
+    if (error) {message(error.message);el('status').textContent = 'Unable to load';return;}
+    const list = el('transactions');
+    list.replaceChildren();
+    let totalCents = 0;
+    for (const tx of data) {
+      const cents = Math.round(Number(tx.spending) * 100);
+      totalCents += cents;
+      const li = document.createElement('li');
+      const description = document.createElement('span');
+      description.textContent = tx.description;
+      const amount = document.createElement('strong');
+      amount.textContent = (cents > 0 ? '+' : '') + currency(cents/100);
+      li.append(description,amount);
+      list.append(li);
+    }
+    if (!data.length) {
+      const li = document.createElement('li');li.textContent='No transactions yet';list.append(li);
+    }
+    el('balance').textContent = currency(totalCents/100);
+    el('status').textContent = `Loaded ${data.length} transaction(s)`;
+  }
+
+  el('loginForm').addEventListener('submit', async event => {
+    event.preventDefault();message('');
+    el('loginButton').disabled = true;
+    const {error} = await supabase.auth.signInWithPassword({
+      email:el('email').value.trim(),password:el('password').value
+    });
+    el('loginButton').disabled = false;
+    if(error) {message(error.message);return;}
+    el('password').value = '';
+    await showSession();
+  });
+  el('refreshButton').addEventListener('click',loadTransactions);
+  el('logoutButton').addEventListener('click',async () => {
+    const {error}=await supabase.auth.signOut();
+    if(error) {message(error.message);return;}
+    el('balance').textContent='—';el('transactions').replaceChildren();
+    await showSession();
+  });
+  await showSession();
+</script>
 </body>
+</html>
