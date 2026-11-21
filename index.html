@@ -207,7 +207,6 @@
                     </div>
                     <label for="description">Description</label>
                     <input id="description" maxlength="200" placeholder="e.g. Ice cream or Washed the car" required>
-                    <p class="small muted">This version records transactions immediately. Job approval by a parent is not yet implemented.</p>
                     <button id="saveButton" type="submit">Save transaction</button>
                 </form>
             </section>
@@ -216,14 +215,14 @@
                     <h2 style="margin:0">Jobs Available</h2>
                     <h2 id="jobsarrow" style="margin:0">▼</h2>
                 </div>
-                <div id="jobstable" class="hidden">
+                <div id="jobstable" class="scroll hidden">
                     <table>
                         <thead>
                             <tr>
                                 <th>Job</th>
                                 <th>Discription</th>
-                                <th>Amount</th>
-                                <th></th>
+                                <th style="text-align:right">Amount</th>
+                                <th style="text-align:right"></th>
                             </tr>
                         </thead>
                         <tbody id="jobs">
@@ -245,10 +244,10 @@
                             <tr>
                                 <th>Date</th>
                                 <th>Description</th>
-                                <th>Spending</th>
-                                <th>Tithing</th>
-                                <th>Saving</th>
-                                <th></th>
+                                <th style="text-align:right">Spending</th>
+                                <th style="text-align:right">Tithing</th>
+                                <th style="text-align:right">Saving</th>
+                                <th style="text-align:right"></th>
                             </tr>
                         </thead>
                         <tbody id="history">
@@ -271,6 +270,7 @@
         const configured = !SUPABASE_URL.includes('YOUR_PROJECT') && !SUPABASE_PUBLISHABLE_KEY.includes('YOUR_PUBLISHABLE_KEY');
         const supabase = configured ? createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY) : null;
         let currentUser = null;
+        let accounts = [];
         let transactions = [];
         let jobs = [];
         const money = n => new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n);
@@ -286,7 +286,6 @@
             $('welcome').textContent=user?.email||'Your account';
             if(!user) {
                 transactions=[];
-                //$('balance').textContent="Spending: " + money(0) + '<br>Tithing: ' + money(0) + '<br>Saving: ' + money(0);
                 $('spending').textContent=money(0);
                 $('tithing').textContent=money(0);
                 $('saving').textContent=money(0);
@@ -297,9 +296,10 @@
         function busy(id,value) { $(id).disabled=value }
         async function loadTransactions() {
             if(!currentUser)return;
-            message('Loading transactions…');
-            const {data,error}=await supabase.from('transactions').select('id, created_at, user_id, description, tithing, spending, saving, approved').order('created_at',{ascending:false}).order('id',{ascending:false}).limit(1000);
+            message('Loading transactions...');
+            const {data,error}=await supabase.from('transactions').select('id, created_at, user_id, description, tithing, spending, saving, approved').eq('user_id',currentUser.id).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(1000);
             const {data:jobsdata,error:jobserror}=await supabase.from('jobs').select('id, created_at, name, description, amount').order('created_at',{ascending:false}).order('id',{ascending:false}).limit(1000);
+            const {data:accountdata,error:accounterror}=await supabase.from('users').select('id, user_id, name, tithing, spending, saving').eq('user_id',currentUser.id);
             if(error) {
                 message('Unable to load transactions: '+error.message,true);
                 return
@@ -308,19 +308,34 @@
                 message('Unable to load jobs: '+jobserror.message,true);
                 return
             }
+            if (accounterror) {
+                message('Unable to load user data: '+accounterror.message,true);
+                return
+            }
             transactions=data||[];
             jobs = jobsdata||[];
+            accounts = accountdata||[];
+            if (accounts.length) {
+                accounts[0].tithing=transactions.reduce((sum,t)=>{if(!t.approved){return sum+Number(t.tithing)}else{return sum}},0)+accounts[0].tithing;
+                accounts[0].spending=transactions.reduce((sum,t)=>{if(!t.approved){return sum+Number(t.spending)}else{return sum}},0)+accounts[0].spending;
+                accounts[0].saving=transactions.reduce((sum,t)=>{if(!t.approved){return sum+Number(t.saving)}else{return sum}},0)+accounts[0].saving;
+            } else {
+                message("Unable to find user balance",true);
+                return
+            }
             render();
             message(transactions.length===1000?'Showing the newest 1,000 transactions. Export includes only these loaded rows.':'');
         }
         function render() {
-            const tithing=transactions.reduce((sum,t)=>sum+Number(t.tithing),0);
-            const spending=transactions.reduce((sum,t)=>sum+Number(t.spending),0);
-            const saving=transactions.reduce((sum,t)=>sum+Number(t.saving),0);
+            //const tithing=transactions.reduce((sum,t)=>sum+Number(t.tithing),0);
+            //const spending=transactions.reduce((sum,t)=>sum+Number(t.spending),0);
+            //const saving=transactions.reduce((sum,t)=>sum+Number(t.saving),0);
             //$('balance').innerHTML="Spending: " + money(spending) + '<br>Tithing: ' + money(tithing) + '<br>Saving: ' + money(saving);
-            $('spending').textContent=money(spending);
-            $('tithing').textContent=money(tithing);
-            $('saving').textContent=money(saving);
+            if (accounts.length) {
+                $('spending').textContent=money(accounts[0].spending);
+                $('tithing').textContent=money(accounts[0].tithing);
+                $('saving').textContent=money(accounts[0].saving);
+            }
             const body=$('history');
             body.replaceChildren();
             if(!transactions.length) {
@@ -461,9 +476,8 @@
             if(!$('message').classList.contains('error'))message('Transaction saved.')
         });
         $('type').addEventListener('change', ()=>{
-            if($('type').value==='tithing') {
-                const tithing=transactions.reduce((sum,t)=>sum+Number(t.tithing),0);
-                $('amount').value=tithing;
+            if($('type').value==='tithing' && accounts.length) {
+                $('amount').value=accounts[0].tithing;
                 $('description').value="Paid Tithing";
             }
         });

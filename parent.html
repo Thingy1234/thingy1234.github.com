@@ -1,0 +1,648 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Family Bank Parent</title>
+    <style>
+        :root {
+            font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+            color:#20312b;
+            background:#f3f6f4
+        }
+        * {
+            box-sizing:border-box
+        }
+        body {
+            margin:0
+        }
+        header {
+            background:#173f35;
+            color:white;
+            padding:20px max(18px,calc((100vw - 900px)/2));
+            display:flex;
+            justify-content:space-between;
+            align-items:center
+        }
+        main {
+            max-width:900px;
+            margin:24px auto;
+            padding:0 16px
+        }
+        .card {
+            background:white;
+            border:1px solid #dce5df;
+            border-radius:16px;
+            padding:22px;
+            margin:18px 0;
+            box-shadow:0 3px 16px #122b1c0b
+        }
+        h1 {
+            font-size:1.4rem;
+            margin:0
+        }
+        h2 {
+            font-size:1.15rem;
+            margin:0 0 16px
+        }
+        label {
+            display:block;
+            font-weight:600;
+            font-size:.9rem;
+            margin:12px 0 6px
+        }
+        input, select {
+            width:100%;
+            padding:12px;
+            border:1px solid #b9c9c1;
+            border-radius:9px;
+            font:inherit
+        }
+        button {
+            border:0;
+            border-radius:9px;
+            background:#17634e;
+            color:white;
+            padding:12px 18px;
+            font:inherit;
+            font-weight:650;
+            cursor:pointer
+        }
+        button:disabled {
+            opacity:.55;
+            cursor:wait
+        }
+        .secondary {
+            background:#e6eee9;
+            color:#164b3b
+        }
+        .delete {
+            background:#e72a2a;
+            color:#e6eee9;
+        }
+        .row {
+            display:flex;
+            gap:12px;
+            align-items:center;
+            flex-wrap:wrap
+        }
+        .grow {
+            flex:1;
+            min-width:180px
+        }
+        .muted {
+            color:#64746b
+        }
+        .balance {
+            font-size:2.4rem;
+            font-weight:750;
+            margin:4px 0 0
+        }
+        .positive {
+            color:#16734e
+        }
+        .negative {
+            color:#ae4141
+        }
+        .hidden {
+            display:none!important
+        }
+        table {
+            border-collapse:collapse;
+            width:100%
+        }
+        th, td {
+            padding:12px 8px;
+            text-align:left;
+            border-bottom:1px solid #e7ece8
+        }
+        th {
+            font-size:.8rem;
+            color:#53675b
+        }
+        .scroll {
+            overflow:auto
+        }
+        #message {
+            margin:12px 0;
+            white-space:pre-wrap
+        }
+        #message.error {
+            color:#ae3030
+        }
+        #message.ok {
+            color:#17634e
+        }
+        .small {
+            font-size:.85rem
+        }
+        footer {
+            text-align:center;
+            color:#718077;
+            padding:25px
+        }
+        @media (max-width:560px) {
+            header {
+                padding:16px
+            }
+            th, td {
+                padding:10px 5px;
+                font-size:.88rem
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🏦 Family Bank Parent</h1>
+        <button id="logout" class="secondary hidden">Sign out</button>
+    </header>
+    <main>
+        <p id="message" role="status" aria-live="polite"></p>
+        <section id="loginPanel" class="card">
+            <h2>Sign in</h2>
+            <form id="loginForm">
+                <label for="email">Email</label>
+                <input id="email" type="email" autocomplete="username" required>
+                <label for="password">Password</label>
+                <input id="password" type="password" autocomplete="current-password" required>
+                <p><button id="loginButton" type="submit">Sign in</button></p>
+            </form>
+        </section>
+        <section id="usermenu" class="card hidden"></section>
+        <div id="dashboard" class="hidden">
+            <section class="card">
+                <div class="row">
+                    <div class="grow">
+                        <div class="muted" id="welcome">User name</div>
+                        <table>
+                            <thead>
+                                <th>Spending</th>
+                                <th>Tithing</th>
+                                <th>Saving</th>
+                            </thead>
+                            <tr>
+                                <td class="balance" id="spending">$0.00</td>
+                                <td class="balance" id="tithing">$0.00</td>
+                                <td class="balance" id="saving">$0.00</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <button class="secondary" id="refresh">Refresh</button>
+                </div>
+            </section>
+            <section class="card">
+                <div id="pendingdropdown" class="row" style="justify-content:space-between">
+                    <h2 style="margin:0">Pending Transactions</h2>
+                    <h2 id="jobsarrow" style="margin:0">▲</h2>
+                </div>
+                <div id="pendingtable" class="scroll">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Description</th>
+                                <th style="text-align:right">Spending</th>
+                                <th style="text-align:right">Tithing</th>
+                                <th style="text-align:right">Saving</th>
+                                <th style="text-align:right"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="pending">
+                            <tr>
+                                <td colspan="6" style="text-align:center">Loading...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            <section class="card">
+                <h2>Record a transaction</h2>
+                <form id="transactionForm">
+                    <div class="row">
+                        <div class="grow">
+                            <label for="type">Type</label>
+                            <select id="type">
+                                <option value="purchase">Purchase (money spent)</option>
+                                <option value="job">Job (money earned)</option>
+                                <option value="gift">Gift (money given)</option>
+                                <option value="tithing">Pay Tithing</option>
+                            </select>
+                        </div>
+                        <div class="grow">
+                            <label for="amount">Amount ($)</label>
+                            <input id="amount" type="number" min="0.01" step="0.01" inputmode="decimal" required>
+                        </div>
+                    </div>
+                    <label for="description">Description</label>
+                    <input id="description" maxlength="200" placeholder="e.g. Ice cream or Washed the car" required>
+                    <button id="saveButton" type="submit">Save transaction</button>
+                </form>
+            </section>
+            <section class="card">
+                <div class="row" style="justify-content:space-between">
+                    <h2>Transaction history</h2>
+                    <button class="secondary" id="export">Export CSV</button>
+                </div>
+                <div class="scroll">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Description</th>
+                                <th style="text-align:right">Spending</th>
+                                <th style="text-align:right">Tithing</th>
+                                <th style="text-align:right">Saving</th>
+                                <th style="text-align:right"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="history">
+                            <tr>
+                                <td colspan="6" style="text-align:center">Loading...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+        <div id="jobsmenu" class="hidden">
+            <section class="card">
+                <h2>Make a job</h2>
+                <form id="jobTransactionForm">
+                    <div class="row">
+                        <div class="grow">
+                            <label for="jobname">Name</label>
+                            <input id="jobname" maxlength="100" placeholder="e.g. Dishes or Car" required>
+                        </div>
+                        <div class="grow">
+                            <label for="jobamount">Amount ($)</label>
+                            <input id="jobamount" type="number" min="0.01" step="0.01" inputmode="decimal" required>
+                        </div>
+                    </div>
+                    <label for="jobdescription">Description</label>
+                    <input id="jobdescription" maxlength="200" placeholder="e.g. Do the Dishes or Washed the car" required>
+                    <button id="jobSaveButton" type="submit">Save Job</button>
+                </form>
+            </section>
+            <section class="card">
+                <h2 style="margin:0">Jobs</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Job</th>
+                            <th>Discription</th>
+                            <th style="text-align:right">Amount</th>
+                            <th style="text-align:right">Completed</th>
+                            <th style="text-align:right"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="jobs">
+                        <tr>
+                            <td colspan="3" style="text-align:center">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+        </div>
+    </main>
+    <footer>Private family records · Powered by Supabase</footer>
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+        // REPLACE BOTH VALUES. Use a publishable/anon key, NEVER a secret or service_role key.
+        const SUPABASE_URL = 'https://dqjlwmbnraunsmzzbfrg.supabase.co';
+        const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_4z4UYHMjFfd1ABWFtV9n7A_2TfXMaRI';
+        const $ = id => document.getElementById(id);
+        const configured = !SUPABASE_URL.includes('YOUR_PROJECT') && !SUPABASE_PUBLISHABLE_KEY.includes('YOUR_PUBLISHABLE_KEY');
+        const supabase = configured ? createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY) : null;
+        let currentUser = null;
+        let selectedUser = null;
+        let users = [];
+        let accounts = [];
+        let transactions = [];
+        let jobs = [];
+        const money = n => new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n);
+        function message(text='',isError=false) {
+            $('message').textContent=text;
+            $('message').className=isError?'error':'ok'
+        }
+        function showSignedIn(user) {
+            currentUser=user;
+            $('loginPanel').classList.toggle('hidden',!!user);
+            $('usermenu').classList.toggle('hidden',!user || !!selectedUser);
+            $('dashboard').classList.toggle('hidden',!user || !selectedUser);
+            $('logout').classList.toggle('hidden',!user);
+        }
+        function busy(id,value) { $(id).disabled=value }
+        async function loadUsers() {
+            if(!currentUser)return;
+            $('usermenu').replaceChildren();
+            message('Loading Users…');
+            const {data,error}=await supabase.from('users').select('id, created_at, user_id, name, tithing, spending, saving').eq('user_id',selectedUser.id).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(1000);
+            if(error) {
+                message('Unable to load users:'+error.message,true);
+                return
+            }
+            users = data||[];
+
+            const body = $('usermenu');
+            body.replaceChildren();
+            if (!users.length) {
+                const nouser = document.createElement('h2');
+                nouser.textContent = "No Users";
+                nouser.style="text-align:center";
+                body.append(nouser);
+                body.append(document.createElement('br'));
+            } else {
+                for (const user of users) {
+                    const div = document.createElement('div');
+                    div.class="row";
+                    div.style="justify-content:space-between";
+                    div.addEventListener('click', ()=>{
+                        selectedUser = user;
+                        showSignedIn();
+                        loadTransactions();
+                    });
+                    const username = document.createElement('h2');
+                    username.textContent=user.name;
+                    username.style="text-align:left";
+                    const arrow = document.createElement('h2');
+                    arrow.textContent="▶";
+                    arrow.style="text-align:right";
+                    div.append(username);
+                    div.append(arrow);
+                    body.append(div);
+                    body.append(document.createElement('br'));
+                }
+            }
+            const jobsdiv = document.createElement('div');
+            jobsdiv.class="row";
+            jobsdiv.style="justify-content:space-between";
+            div.addEventListener('click', ()=>{
+                $('usermenu').classList.add('hidden');
+                $('jobsmenu').classList.remove('hidden');
+                loadJobs();
+            });
+            const jobs = document.createElement('h2');
+            jobs.textContent="Jobs";
+            jobs.style="text-align:left";
+            const jobsarrow = document.createElement('h2');
+            jobsarrow.textContent="▶";
+            jobs.style="text-align:right";
+            jobsdiv.append(jobs);
+            jobsdiv.append(jobsarrow);
+            body.append(jobsdiv);
+        }
+        async function loadJobs() {
+            if(!currentUser)return;
+            message("loading jobs...");
+            const {data:jobsdata,error:jobserror}=await supabase.from('jobs').select('id, created_at, name, description, amount').order('created_at',{ascending:false}).order('id',{ascending:false}).limit(1000);
+            if (jobserror) {
+                message('Unable to load jobs: '+jobserror.message);
+                return
+            }
+            jobs = jobsdata||[];
+
+            const jobsbody=$('jobs');
+            jobsbody.replaceChildren();
+            if(!jobs.length) {
+                const tr=document.createElement('tr'),td=document.createElement('td');
+                td.colSpan=3;
+                td.style="text-align:center";
+                td.textContent='No jobs yet.';
+                tr.append(td);
+                jobsbody.append(tr);
+                return
+            }
+            for (const job of jobs) {
+                const tr=document.createElement('tr');
+                const name=document.createElement('td');
+                name.textContent=job.name;
+                const description=document.createElement('td');
+                description.textContent=t.description;
+                const amount=document.createElement('td');
+                const n=Number(job.amount);
+                amount.textContent=(n>0?'+':'')+money(n);
+                amount.style="text-align:right";
+                amount.className=n>=0?'positive':'negative';
+                const isdone = document.createElement('input');
+                const dojob=document.createElement('button');
+                dojob.textContent='delete';
+                dojob.class='delete';
+                dojob.style="text-align:right";
+                dojob.addEventListener('click', ()=>{
+                    $('type').value='job';
+                    $('amount').value=t.amount;
+                    $('description').value=t.description;
+                });
+                tr.append(name,description,amount,dojob);
+                jobsbody.append(tr)
+            }
+        }
+        async function loadTransactions() {
+            if(!currentUser)return;
+            if(!selectedUser)return;
+            $('welcome').textContent=user?.name||'User name';
+            $('spending').textContent=money(0);
+            $('tithing').textContent=money(0);
+            $('saving').textContent=money(0);
+            $('history').replaceChildren();
+            $('jobs').replaceChildren();
+            message('Loading transactions...');
+            const {data,error}=await supabase.from('transactions').select('id, created_at, user_id, description, tithing, spending, saving, approved').eq('user_id',selectedUser.user_id).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(1000);
+            const {data:accountdata,error:accounterror}=await supabase.from('users').select('id, user_id, name, tithing, spending, saving').eq('user_id',selectedUser.user_id);
+            if(error) {
+                message('Unable to load transactions: '+error.message,true);
+                return
+            }
+            if (accounterror) {
+                message('Unable to load user data: '+accounterror.message,true);
+                return
+            }
+            transactions=data||[];
+            jobs = jobsdata||[];
+            accounts = accountdata||[];
+            if (accounts.length) {
+                accounts[0].tithing=transactions.reduce((sum,t)=>{if(!t.approved){return sum+Number(t.tithing)}else{return sum}},0)+accounts[0].tithing;
+                accounts[0].spending=transactions.reduce((sum,t)=>{if(!t.approved){return sum+Number(t.spending)}else{return sum}},0)+accounts[0].spending;
+                accounts[0].saving=transactions.reduce((sum,t)=>{if(!t.approved){return sum+Number(t.saving)}else{return sum}},0)+accounts[0].saving;
+            } else {
+                message("Unable to find user balance",true);
+                return
+            }
+            render();
+            message(transactions.length===1000?'Showing the newest 1,000 transactions. Export includes only these loaded rows.':'');
+        }
+        function render() {
+            //const tithing=transactions.reduce((sum,t)=>sum+Number(t.tithing),0);
+            //const spending=transactions.reduce((sum,t)=>sum+Number(t.spending),0);
+            //const saving=transactions.reduce((sum,t)=>sum+Number(t.saving),0);
+            //$('balance').innerHTML="Spending: " + money(spending) + '<br>Tithing: ' + money(tithing) + '<br>Saving: ' + money(saving);
+            if (accounts.length) {
+                $('spending').textContent=money(accounts[0].spending);
+                $('tithing').textContent=money(accounts[0].tithing);
+                $('saving').textContent=money(accounts[0].saving);
+            }
+            const body=$('history');
+            body.replaceChildren();
+            if(!transactions.length) {
+                const tr=document.createElement('tr'),td=document.createElement('td');
+                td.colSpan=3;
+                td.style="text-align:center";
+                td.textContent='No transactions yet.';
+                tr.append(td);
+                body.append(tr);
+                return
+            }
+            for (const t of transactions) {
+                const tr=document.createElement('tr');
+                const date=document.createElement('td');
+                date.textContent=new Date(t.created_at).toLocaleDateString();
+                const description=document.createElement('td');
+                description.textContent=t.description;
+                const tithing=document.createElement('td');
+                const tithingN=Number(t.tithing);
+                tithing.textContent=(tithingN>0?'+':'')+money(tithingN);
+                tithing.className=tithingN>=0?'positive':'negative';
+                tithing.style="text-align:right";
+                const spending=document.createElement('td');
+                const spendingN=Number(t.spending);
+                spending.textContent=(spendingN>0?'+':'')+money(spendingN);
+                spending.className=spendingN>=0?'positive':'negative';
+                spending.style="text-align:right";
+                const saving=document.createElement('td');
+                const savingN=Number(t.saving);
+                saving.textContent=(savingN>0?'+':'')+money(savingN);
+                saving.className=savingN>=0?'positive':'negative';
+                saving.style="text-align:right";
+                const pending=document.createElement('td');
+                pending.textContent=(!t.approved)?'Pending':'';
+                pending.style="text-align:right";
+                tr.append(date,description,spending,tithing,saving,pending);
+                body.append(tr)
+            }
+        }
+        $('loginForm').addEventListener('submit',async e=>{
+            e.preventDefault();
+            if(!supabase)return;
+            busy('loginButton',true);
+            message('Signing in…');
+            const {data,error}=await supabase.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});
+            busy('loginButton',false);
+            if(error){
+                message(error.message,true);
+                return
+            }
+            $('password').value='';
+            showSignedIn(data.user);
+            await loadUsers()
+        });
+        $('logout').addEventListener('click',async()=>{
+            const {error}=await supabase.auth.signOut();
+            if(error){
+                message(error.message,true);
+                return
+            }
+            showSignedIn(null);
+            message('Signed out.')
+        });
+        $('refresh').addEventListener('click',loadTransactions);
+        $('transactionForm').addEventListener('submit',async e=>{
+            e.preventDefault();
+            if(!currentUser)return;
+            const amount=Number($('amount').value);
+            const desc=$('description').value.trim();
+            if(!Number.isFinite(amount)||amount<=0||Math.round(amount*100)!==amount*100||!desc){
+                message('Enter a description and a positive number with at most two decimal places.',true);
+                return
+            }
+            var spending;
+            var tithing;
+            var saving;
+            if ($('type').value==='job') {
+                spending = Math.round(amount*90)/100;
+                tithing = Math.round(amount*10)/100;
+                saving = 0;
+            } else if ($('type').value==='purchase') {
+                spending = -amount;
+                tithing = 0;
+                saving = 0;
+            } else if ($('type').value==='gift') {
+                spending = amount;
+                tithing = 0;
+                saving = 0;
+            } else if ($('type').value==='tithing') {
+                spending = 0;
+                tithing = -amount;
+                saving = 0;
+            }
+            //const spending=$('type').value==='purchase'?-amount:amount;
+            busy('saveButton',true);
+            message('Saving…');
+            const {error}=await supabase.from('transactions').insert({user_id:currentUser.id,description:desc,spending:spending,tithing:tithing,saving:saving});
+            busy('saveButton',false);
+            if(error){
+                message('Unable to save: '+error.message,true);
+                return
+            }
+            $('transactionForm').reset();
+            await loadTransactions();
+            if(!$('message').classList.contains('error'))message('Transaction saved.')
+        });
+        $('type').addEventListener('change', ()=>{
+            if($('type').value==='tithing' && accounts.length) {
+                $('amount').value=accounts[0].tithing;
+                $('description').value="Paid Tithing";
+            }
+        });
+        $('jobsdropdown').addEventListener('click', ()=>{
+            const isHidden = $('jobstable').classList.contains('hidden');
+            $('jobstable').classList.toggle('hidden',!isHidden);
+            if (isHidden) {
+                $('jobsarrow').textContent = '▲';
+            } else {
+                $('jobsarrow').textContent = '▼';
+            }
+        });
+        function csvField(v){
+            const s=String(v??'');
+            return '"'+s.replaceAll('"','""')+'"'
+        }
+        $('export').addEventListener('click',()=>{
+            if(!transactions.length) {
+                message('No transactions to export.');
+                return
+            }
+            const lines=[['Date','Description','Spending','Transaction ID'].map(csvField).join(',')];
+            for (const t of transactions) {
+                const iso=new Date(t.created_at).toISOString();
+                let description=t.description; // Reduce spreadsheet formula injection risk.
+                if(/^[\s]*[=+\-@\t\r]/.test(description))description="'"+description;
+                lines.push([iso,description,Number(t.spending).toFixed(2),t.id].map(csvField).join(','))
+            }
+            const blob=new Blob(['\uFEFF'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+            const url=URL.createObjectURL(blob);
+            const a=document.createElement('a');
+            a.href=url;
+            a.download='family-bank-transactions-'+new Date().toISOString().slice(0,10)+'.csv';
+            document.body.append(a);
+            a.click();
+            a.remove();
+            setTimeout(()=>URL.revokeObjectURL(url),1000)});
+            if(!configured) {
+                message('Setup needed: edit index.html and enter your Supabase project URL and publishable key.',true)
+            } else {
+                const {data,error}=await supabase.auth.getUser();
+                if(error&&error.name!=='AuthSessionMissingError')message(error.message,true);
+                showSignedIn(data?.user||null);
+                if(data?.user)await loadTransactions();
+                supabase.auth.onAuthStateChange((event,session)=>{
+                    if(event==='SIGNED_OUT') {
+                        showSignedIn(null)
+                    } else if(event==='SIGNED_IN'&&session?.user&&currentUser?.id!==session.user.id) {
+                        showSignedIn(session.user);
+                        setTimeout(loadTransactions,0)
+                    }
+                })
+            }
+    </script>
+</body>
+</html>
