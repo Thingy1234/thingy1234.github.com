@@ -298,7 +298,7 @@
             if(!currentUser)return;
             message('Loading transactions...');
             const {data,error}=await supabase.from('transactions').select('id, created_at, user_id, description, tithing, spending, saving, approved').eq('user_id',currentUser.id).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(1000);
-            const {data:jobsdata,error:jobserror}=await supabase.from('jobs').select('id, created_at, name, description, amount').order('created_at',{ascending:false}).order('id',{ascending:false}).limit(1000);
+            const {data:jobsdata,error:jobserror}=await supabase.from('jobs').select('id, created_at, name, description, amount').not('completed', 'eq', true).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(1000);
             const {data:accountdata,error:accounterror}=await supabase.from('users').select('id, user_id, name, tithing, spending, saving').eq('user_id',currentUser.id);
             if(error) {
                 message('Unable to load transactions: '+error.message,true);
@@ -315,14 +315,14 @@
             transactions=data||[];
             jobs = jobsdata||[];
             accounts = accountdata||[];
-            if (accounts.length) {
-                accounts[0].tithing=transactions.reduce((sum,t)=>{if(!t.approved){return sum+Number(t.tithing)}else{return sum}},0)+accounts[0].tithing;
-                accounts[0].spending=transactions.reduce((sum,t)=>{if(!t.approved){return sum+Number(t.spending)}else{return sum}},0)+accounts[0].spending;
-                accounts[0].saving=transactions.reduce((sum,t)=>{if(!t.approved){return sum+Number(t.saving)}else{return sum}},0)+accounts[0].saving;
-            } else {
-                message("Unable to find user balance",true);
-                return
-            }
+            // if (accounts.length) {
+            //     accounts[0].tithing=transactions.reduce((sum,t)=>{if(!t.approved){return sum+Number(t.tithing)}else{return sum}},0)+accounts[0].tithing;
+            //     accounts[0].spending=transactions.reduce((sum,t)=>{if(!t.approved){return sum+Number(t.spending)}else{return sum}},0)+accounts[0].spending;
+            //     accounts[0].saving=transactions.reduce((sum,t)=>{if(!t.approved){return sum+Number(t.saving)}else{return sum}},0)+accounts[0].saving;
+            // } else {
+            //     message("Unable to find user balance",true);
+            //     return
+            // }
             render();
             message(transactions.length===1000?'Showing the newest 1,000 transactions. Export includes only these loaded rows.':'');
         }
@@ -396,15 +396,18 @@
                 amount.textContent=(n>0?'+':'')+money(n);
                 amount.style="text-align:right";
                 amount.className=n>=0?'positive':'negative';
-                const dojob=document.createElement('button');
-                dojob.textContent='Do Job';
-                dojob.style="text-align:right";
-                dojob.addEventListener('click', ()=>{
+                const dojobtd=document.createElement('td');
+                dojobtd.style="text-align:right";
+                const dojobbtn=document.createElement('button');
+                dojobbtn.textContent='Do Job';
+                dojobbtn.style="text-align:right";
+                dojobbtn.addEventListener('click', ()=>{
                     $('type').value='job';
                     $('amount').value=t.amount;
                     $('description').value=t.description;
                 });
-                tr.append(name,description,amount,dojob);
+                dojobtd.append(dojobbtn);
+                tr.append(name,description,amount,dojobtd);
                 jobsbody.append(tr)
             }
         }

@@ -170,6 +170,7 @@
         </section>
         <section id="usermenu" class="card hidden"></section>
         <div id="dashboard" class="hidden">
+            <div id="dashboardback" class="card"><h2 style="margin:0">◀ Back</h2></div>
             <section class="card">
                 <div class="row">
                     <div class="grow">
@@ -193,7 +194,7 @@
             <section class="card">
                 <div id="pendingdropdown" class="row" style="justify-content:space-between">
                     <h2 style="margin:0">Pending Transactions</h2>
-                    <h2 id="jobsarrow" style="margin:0">▲</h2>
+                    <h2 id="pendingarrow" style="margin:0">▲</h2>
                 </div>
                 <div id="pendingtable" class="scroll">
                     <table>
@@ -239,6 +240,29 @@
                 </form>
             </section>
             <section class="card">
+                <div id="jobsdropdown" class="row" style="justify-content:space-between">
+                    <h2 style="margin:0">Jobs Available</h2>
+                    <h2 id="jobsarrow" style="margin:0">▼</h2>
+                </div>
+                <div id="jobstable" class="scroll hidden">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Job</th>
+                                <th>Discription</th>
+                                <th style="text-align:right">Amount</th>
+                                <th style="text-align:right"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="jobs2">
+                            <tr>
+                                <td colspan="3" style="text-align:center">Loading...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            <section class="card">
                 <div class="row" style="justify-content:space-between">
                     <h2>Transaction history</h2>
                     <button class="secondary" id="export">Export CSV</button>
@@ -253,6 +277,7 @@
                                 <th style="text-align:right">Tithing</th>
                                 <th style="text-align:right">Saving</th>
                                 <th style="text-align:right"></th>
+                                <th style="text-align:right"></th>
                             </tr>
                         </thead>
                         <tbody id="history">
@@ -265,6 +290,7 @@
             </section>
         </div>
         <div id="jobsmenu" class="hidden">
+            <div id="jobsmenuback" class="card"><h2 style="margin:0">◀ Back</h2></div>
             <section class="card">
                 <h2>Make a job</h2>
                 <form id="jobTransactionForm">
@@ -316,7 +342,6 @@
         let currentUser = null;
         let selectedUser = null;
         let users = [];
-        let accounts = [];
         let transactions = [];
         let jobs = [];
         const money = n => new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n);
@@ -329,80 +354,110 @@
             $('loginPanel').classList.toggle('hidden',!!user);
             $('usermenu').classList.toggle('hidden',!user || !!selectedUser);
             $('dashboard').classList.toggle('hidden',!user || !selectedUser);
+            $('jobsmenu').classList.add('hidden');
             $('logout').classList.toggle('hidden',!user);
         }
+        function showCurrent() {
+            $('loginPanel').classList.toggle('hidden',!!currentUser);
+            $('usermenu').classList.toggle('hidden',!currentUser || !!selectedUser);
+            $('dashboard').classList.toggle('hidden',!currentUser || !selectedUser);
+            $('jobsmenu').classList.add('hidden');
+            $('logout').classList.toggle('hidden',!currentUser);
+        }
         function busy(id,value) { $(id).disabled=value }
+        async function updateUserBalance() {
+            if (!selectedUser) return 1;
+            const {data,error}=await supabase.from('users').select('tithing, spending, saving').eq('user_id',selectedUser.user_id);
+            if (error) {
+                message('Unable to get user balance: '+error.message,true);
+                return 2;
+            }
+            if (!data) {
+                message('Unable to get user balance: list empty',true);
+                return 3;
+            }
+            selectedUser.tithing = data[0].tithing;
+            selectedUser.spending = data[0].spending;
+            selectedUser.saving = data[0].saving;
+            return 0;
+        }
         async function loadUsers() {
             if(!currentUser)return;
             $('usermenu').replaceChildren();
             message('Loading Users…');
-            const {data,error}=await supabase.from('users').select('id, created_at, user_id, name, tithing, spending, saving').eq('user_id',selectedUser.id).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(1000);
+            const {data,error}=await supabase.from('users').select('id, created_at, user_id, name, tithing, spending, saving').order('created_at',{ascending:false}).order('id',{ascending:false});
             if(error) {
                 message('Unable to load users:'+error.message,true);
                 return
             }
             users = data||[];
+            message('');
 
-            const body = $('usermenu');
-            body.replaceChildren();
+            const usersbody = $('usermenu');
+            usersbody.replaceChildren();
             if (!users.length) {
                 const nouser = document.createElement('h2');
                 nouser.textContent = "No Users";
-                nouser.style="text-align:center";
-                body.append(nouser);
-                body.append(document.createElement('br'));
+                nouser.style="text-align:center; margin:0";
+                usersbody.append(nouser);
+                usersbody.append(document.createElement('hr'));
             } else {
                 for (const user of users) {
                     const div = document.createElement('div');
-                    div.class="row";
+                    div.className="row";
                     div.style="justify-content:space-between";
                     div.addEventListener('click', ()=>{
                         selectedUser = user;
-                        showSignedIn();
                         loadTransactions();
+                        loadJobs();
+                        showCurrent();
                     });
                     const username = document.createElement('h2');
                     username.textContent=user.name;
-                    username.style="text-align:left";
+                    username.style="text-align:left; margin:10px";
                     const arrow = document.createElement('h2');
                     arrow.textContent="▶";
-                    arrow.style="text-align:right";
+                    arrow.style="text-align:right; margin:10px";
                     div.append(username);
                     div.append(arrow);
-                    body.append(div);
-                    body.append(document.createElement('br'));
+                    usersbody.append(div);
+                    usersbody.append(document.createElement('hr'));
                 }
             }
             const jobsdiv = document.createElement('div');
-            jobsdiv.class="row";
+            jobsdiv.className="row";
             jobsdiv.style="justify-content:space-between";
-            div.addEventListener('click', ()=>{
+            jobsdiv.addEventListener('click', ()=>{
                 $('usermenu').classList.add('hidden');
                 $('jobsmenu').classList.remove('hidden');
+                $('jobTransactionForm').reset();
                 loadJobs();
             });
-            const jobs = document.createElement('h2');
-            jobs.textContent="Jobs";
-            jobs.style="text-align:left";
+            const jobstext = document.createElement('h2');
+            jobstext.textContent="Jobs";
+            jobstext.style="text-align:left; margin:10px";
             const jobsarrow = document.createElement('h2');
             jobsarrow.textContent="▶";
-            jobs.style="text-align:right";
-            jobsdiv.append(jobs);
+            jobsarrow.style="text-align:right; margin:10px";
+            jobsdiv.append(jobstext);
             jobsdiv.append(jobsarrow);
-            body.append(jobsdiv);
+            usersbody.append(jobsdiv);
         }
         async function loadJobs() {
             if(!currentUser)return;
             message("loading jobs...");
-            const {data:jobsdata,error:jobserror}=await supabase.from('jobs').select('id, created_at, name, description, amount').order('created_at',{ascending:false}).order('id',{ascending:false}).limit(1000);
+            const {data:jobsdata,error:jobserror}=await supabase.from('jobs').select('id, created_at, name, description, amount, completed').order('created_at',{ascending:false}).order('id',{ascending:false}).limit(1000);
             if (jobserror) {
                 message('Unable to load jobs: '+jobserror.message);
                 return
             }
             jobs = jobsdata||[];
+            message('');
 
             const jobsbody=$('jobs');
+            const jobs2body=$('jobs2');
             jobsbody.replaceChildren();
+            jobs2body.replaceChildren();
             if(!jobs.length) {
                 const tr=document.createElement('tr'),td=document.createElement('td');
                 td.colSpan=3;
@@ -410,6 +465,7 @@
                 td.textContent='No jobs yet.';
                 tr.append(td);
                 jobsbody.append(tr);
+                jobsjobsbody.append(tr);
                 return
             }
             for (const job of jobs) {
@@ -417,30 +473,81 @@
                 const name=document.createElement('td');
                 name.textContent=job.name;
                 const description=document.createElement('td');
-                description.textContent=t.description;
+                description.textContent=job.description;
                 const amount=document.createElement('td');
                 const n=Number(job.amount);
                 amount.textContent=(n>0?'+':'')+money(n);
                 amount.style="text-align:right";
                 amount.className=n>=0?'positive':'negative';
-                const isdone = document.createElement('input');
-                const dojob=document.createElement('button');
-                dojob.textContent='delete';
-                dojob.class='delete';
-                dojob.style="text-align:right";
-                dojob.addEventListener('click', ()=>{
-                    $('type').value='job';
-                    $('amount').value=t.amount;
-                    $('description').value=t.description;
+                const isdonetd = document.createElement('td');
+                isdonetd.style="text-align:right";
+                const isdoneinput = document.createElement('input');
+                isdoneinput.type ='checkbox';
+                isdoneinput.checked = job.completed;
+                isdoneinput.addEventListener('change',async ()=>{
+                    isdoneinput.disabled = true;
+                    const {error}=await supabase.from('jobs').update({completed:isdoneinput.checked}).eq('id',job.id);
+                    if (error) {
+                        message('Unable to edit job: '+error.message);
+                        isdoneinput.checked = !isdoneinput.checked;
+                    }
+                    job.completed = isdoneinput.checked;
+                    isdoneinput.disabled = false;
                 });
-                tr.append(name,description,amount,dojob);
-                jobsbody.append(tr)
+                isdonetd.append(isdoneinput);
+                const deletejobtd = document.createElement('td');
+                deletejobtd.style="text-align:right";
+                const deletejobbtn=document.createElement('button');
+                deletejobbtn.textContent='delete';
+                deletejobbtn.className='delete';
+                deletejobbtn.style="text-align:right";
+                deletejobbtn.addEventListener('click',async ()=>{
+                    const userConfirm = confirm("Are you sure you want to delete this job?");
+                    if (userConfirm) {
+                        deletejobbtn.disabled = true;
+                        const {error}=await supabase.from('jobs').delete().eq('id',job.id);
+                        if (error) {
+                            message('Unable to delete job: '+error.message,true);
+                        }
+                        loadJobs();
+                        deletejobbtn.disabled = false;
+                    } else {
+                        message('Delete Cancled');
+                    }
+                });
+                deletejobtd.append(deletejobbtn);
+                tr.append(name,description,amount,isdonetd,deletejobtd);
+                jobsbody.append(tr);
+
+                const name2=document.createElement('td');
+                name2.textContent=job.name;
+                const description2=document.createElement('td');
+                description2.textContent=job.description;
+                const amount2=document.createElement('td');
+                const n2=Number(job.amount);
+                amount2.textContent=(n>0?'+':'')+money(n);
+                amount2.style="text-align:right";
+                amount2.className=n>=0?'positive':'negative';
+                const tr2=document.createElement('tr');
+                const dojobtd=document.createElement('td');
+                dojobtd.style="text-align:right";
+                const dojobbtn=document.createElement('button');
+                dojobbtn.textContent='Do Job';
+                dojobbtn.style="text-align:right";
+                dojobbtn.addEventListener('click', ()=>{
+                    $('type').value='job';
+                    $('amount').value=job.amount;
+                    $('description').value=job.description;
+                });
+                dojobtd.append(dojobbtn);
+                tr2.append(name2,description2,amount2,dojobtd);
+                jobs2body.append(tr2);
             }
         }
         async function loadTransactions() {
             if(!currentUser)return;
             if(!selectedUser)return;
-            $('welcome').textContent=user?.name||'User name';
+            $('welcome').textContent=selectedUser?.name||'User name';
             $('spending').textContent=money(0);
             $('tithing').textContent=money(0);
             $('saving').textContent=money(0);
@@ -448,26 +555,17 @@
             $('jobs').replaceChildren();
             message('Loading transactions...');
             const {data,error}=await supabase.from('transactions').select('id, created_at, user_id, description, tithing, spending, saving, approved').eq('user_id',selectedUser.user_id).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(1000);
-            const {data:accountdata,error:accounterror}=await supabase.from('users').select('id, user_id, name, tithing, spending, saving').eq('user_id',selectedUser.user_id);
             if(error) {
                 message('Unable to load transactions: '+error.message,true);
-                return
-            }
-            if (accounterror) {
-                message('Unable to load user data: '+accounterror.message,true);
-                return
+                return;
             }
             transactions=data||[];
-            jobs = jobsdata||[];
-            accounts = accountdata||[];
-            if (accounts.length) {
-                accounts[0].tithing=transactions.reduce((sum,t)=>{if(!t.approved){return sum+Number(t.tithing)}else{return sum}},0)+accounts[0].tithing;
-                accounts[0].spending=transactions.reduce((sum,t)=>{if(!t.approved){return sum+Number(t.spending)}else{return sum}},0)+accounts[0].spending;
-                accounts[0].saving=transactions.reduce((sum,t)=>{if(!t.approved){return sum+Number(t.saving)}else{return sum}},0)+accounts[0].saving;
-            } else {
-                message("Unable to find user balance",true);
-                return
+            if (await updateUserBalance()) {
+                return;
             }
+            //accounts[0].tithing=transactions.reduce((sum,t)=>{if(!t.approved){return sum+Number(t.tithing)}else{return sum}},0)+selectedUser.tithing;
+            //accounts[0].spending=transactions.reduce((sum,t)=>{if(!t.approved){return sum+Number(t.spending)}else{return sum}},0)+selectedUser.spending;
+            //accounts[0].saving=transactions.reduce((sum,t)=>{if(!t.approved){return sum+Number(t.saving)}else{return sum}},0)+selectedUser.saving;
             render();
             message(transactions.length===1000?'Showing the newest 1,000 transactions. Export includes only these loaded rows.':'');
         }
@@ -476,13 +574,15 @@
             //const spending=transactions.reduce((sum,t)=>sum+Number(t.spending),0);
             //const saving=transactions.reduce((sum,t)=>sum+Number(t.saving),0);
             //$('balance').innerHTML="Spending: " + money(spending) + '<br>Tithing: ' + money(tithing) + '<br>Saving: ' + money(saving);
-            if (accounts.length) {
-                $('spending').textContent=money(accounts[0].spending);
-                $('tithing').textContent=money(accounts[0].tithing);
-                $('saving').textContent=money(accounts[0].saving);
+            if (selectedUser) {
+                $('spending').textContent=money(selectedUser.spending);
+                $('tithing').textContent=money(selectedUser.tithing);
+                $('saving').textContent=money(selectedUser.saving);
             }
             const body=$('history');
+            const pendingbody=$('pending');
             body.replaceChildren();
+            pendingbody.replaceChildren();
             if(!transactions.length) {
                 const tr=document.createElement('tr'),td=document.createElement('td');
                 td.colSpan=3;
@@ -513,11 +613,86 @@
                 saving.textContent=(savingN>0?'+':'')+money(savingN);
                 saving.className=savingN>=0?'positive':'negative';
                 saving.style="text-align:right";
-                const pending=document.createElement('td');
-                pending.textContent=(!t.approved)?'Pending':'';
-                pending.style="text-align:right";
-                tr.append(date,description,spending,tithing,saving,pending);
-                body.append(tr)
+                const approvetd=document.createElement('td');
+                approvetd.style="text-align:right";
+                const approvebtn=document.createElement('button');
+                approvebtn.style="text-align:right";
+                const deletetd = document.createElement('td');
+                deletetd.style="text-align:right";
+                const deletebtn = document.createElement('button');
+                deletebtn.textContent="delete";
+                deletebtn.className='delete';
+                deletebtn.style="text-align:right";
+                deletebtn.addEventListener('click', async ()=>{
+                    const userConfirm = confirm("Are you sure you want to delete this transaction?");
+                    if (userConfirm) {
+                        deletebtn.disabled = true;
+                        const {error}=await supabase.from('transactions').delete().eq('id',t.id);
+                        if (error) {
+                            message('Unable to delete transaction: '+error.message,true);
+                        }
+                        loadTransactions();
+                        deletebtn.disabled = false;
+                    } else {
+                        message('Delete Cancled');
+                    }
+                });
+                deletetd.append(deletebtn);
+                if (t.approved) {
+                    approvebtn.textContent="reject";
+                    approvebtn.addEventListener('click', async ()=>{
+                        approvebtn.disabled=true;
+                        const {error}=await supabase.from('transactions').update({approved:false}).eq('id',t.id);
+                        if (error) {
+                            message('Unable to reject transaction: '+error.message,true);
+                            approvebtn.disabled=false;
+                            return
+                        }
+                        if (await updateUserBalance()) {
+                            approvebtn=false;
+                            return
+                        }
+                        const {error:userserror}=await supabase.from('users').update({tithing:(selectedUser.tithing-t.tithing),spending:(selectedUser.spending-t.spending),saving:(selectedUser.saving-t.saving)}).eq('user_id',selectedUser.user_id);
+                        if (userserror) {
+                            message('Unable to update user balance transaction: '+userserror.message,true);
+                            await supabase.from('transactions').update({approved:false}).eq('id',t.id);
+                            approvebtn.disabled=false;
+                            return
+                        }
+                        await loadTransactions();
+                        approvebtn.disabled=false;
+                    });
+                    approvetd.append(approvebtn);
+                    tr.append(date,description,spending,tithing,saving,approvetd,deletetd);
+                    body.append(tr);
+                } else {
+                    approvebtn.textContent="approve";
+                    approvebtn.addEventListener('click', async ()=>{
+                        approvebtn.disabled=true;
+                        const {error}=await supabase.from('transactions').update({approved:true}).eq('id',t.id);
+                        if (error) {
+                            message('Unable to approve transaction: '+error.message,true);
+                            approvebtn.disabled=false;
+                            return
+                        }
+                        if (await updateUserBalance()) {
+                            approvebtn=false;
+                            return
+                        }
+                        const {error:userserror}=await supabase.from('users').update({tithing:(selectedUser.tithing+t.tithing),spending:(selectedUser.spending+t.spending),saving:(selectedUser.saving+t.saving)}).eq('user_id',selectedUser.user_id);
+                        if (userserror) {
+                            message('Unable to update user balance transaction: '+userserror.message,true);
+                            await supabase.from('transactions').update({approved:false}).eq('id',t.id);
+                            approvebtn.disabled=false;
+                            return
+                        }
+                        await loadTransactions();
+                        approvebtn.disabled=false;
+                    });
+                    approvetd.append(approvebtn);
+                    tr.append(date,description,spending,tithing,saving,approvetd,deletetd);
+                    pendingbody.append(tr);
+                }
             }
         }
         $('loginForm').addEventListener('submit',async e=>{
@@ -533,7 +708,7 @@
             }
             $('password').value='';
             showSignedIn(data.user);
-            await loadUsers()
+            await loadUsers();
         });
         $('logout').addEventListener('click',async()=>{
             const {error}=await supabase.auth.signOut();
@@ -576,7 +751,7 @@
             }
             //const spending=$('type').value==='purchase'?-amount:amount;
             busy('saveButton',true);
-            message('Saving…');
+            message('Saving...');
             const {error}=await supabase.from('transactions').insert({user_id:currentUser.id,description:desc,spending:spending,tithing:tithing,saving:saving});
             busy('saveButton',false);
             if(error){
@@ -587,10 +762,44 @@
             await loadTransactions();
             if(!$('message').classList.contains('error'))message('Transaction saved.')
         });
+        $('jobTransactionForm').addEventListener('submit',async e=>{
+            e.preventDefault();
+            if(!currentUser)return;
+            const name=$('jobname').value;
+            const amount=Number($('jobamount').value);
+            const desc=$('jobdescription').value.trim();
+            if(!Number.isFinite(amount)||amount<=0||Math.round(amount*100)!==amount*100||!desc||!name){
+                message('Enter a description, name, and a positive number with at most two decimal places.',true);
+                return
+            }
+            //const spending=$('type').value==='purchase'?-amount:amount;
+            busy('jobSaveButton',true);
+            message('Saving...');
+            const {error}=await supabase.from('jobs').insert({name:name,description:desc,amount:amount});
+            busy('jobSaveButton',false);
+            if(error){
+                message('Unable to save: '+error.message,true);
+                return
+            }
+            $('jobTransactionForm').reset();
+            await loadJobs();
+            if(!$('message').classList.contains('error'))message('Job saved.')
+        });
         $('type').addEventListener('change', ()=>{
+            if (!currentUser)return;
+            if (updateUserBalance())return;
             if($('type').value==='tithing' && accounts.length) {
-                $('amount').value=accounts[0].tithing;
+                $('amount').value=currentUser.tithing;
                 $('description').value="Paid Tithing";
+            }
+        });
+        $('pendingdropdown').addEventListener('click', ()=>{
+            const isHidden = $('pendingtable').classList.contains('hidden');
+            $('pendingtable').classList.toggle('hidden',!isHidden);
+            if (isHidden) {
+                $('pendingarrow').textContent = '▲';
+            } else {
+                $('pendingarrow').textContent = '▼';
             }
         });
         $('jobsdropdown').addEventListener('click', ()=>{
@@ -602,6 +811,13 @@
                 $('jobsarrow').textContent = '▼';
             }
         });
+        function back() {
+            selectedUser = null;
+            loadUsers();
+            showCurrent();
+        }
+        $('dashboardback').addEventListener('click', back);
+        $('jobsmenuback').addEventListener('click', back);
         function csvField(v){
             const s=String(v??'');
             return '"'+s.replaceAll('"','""')+'"'
@@ -626,6 +842,7 @@
             document.body.append(a);
             a.click();
             a.remove();
+
             setTimeout(()=>URL.revokeObjectURL(url),1000)});
             if(!configured) {
                 message('Setup needed: edit index.html and enter your Supabase project URL and publishable key.',true)
@@ -633,13 +850,15 @@
                 const {data,error}=await supabase.auth.getUser();
                 if(error&&error.name!=='AuthSessionMissingError')message(error.message,true);
                 showSignedIn(data?.user||null);
-                if(data?.user)await loadTransactions();
+                //if(data?.user)await loadTransactions();
+                if(data?.user)await loadUsers();
                 supabase.auth.onAuthStateChange((event,session)=>{
                     if(event==='SIGNED_OUT') {
                         showSignedIn(null)
                     } else if(event==='SIGNED_IN'&&session?.user&&currentUser?.id!==session.user.id) {
                         showSignedIn(session.user);
-                        setTimeout(loadTransactions,0)
+                        //setTimeout(loadTransactions,0);
+                        setTimeout(loadUsers,0);
                     }
                 })
             }
